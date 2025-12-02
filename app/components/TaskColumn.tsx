@@ -30,21 +30,25 @@ export default function TaskColumn({
 }: TaskColumnProps) {
   return (
     <div
-      className="flex flex-col gap-2 flex-1 bg-zinc-800 p-4 rounded-lg overflow-y-auto"
+      className="flex flex-col flex-1 bg-zinc-800 p-4 rounded-lg overflow-hidden"
       onDragOver={onDragOver}
       onDrop={() => onDrop(status)}
     >
-      <h2 className="text-lg font-bold text-amber-500 mb-5">{title}</h2>
+      <h2 className="text-lg font-bold text-amber-500 mb-5 flex-shrink-0">
+        {title}
+      </h2>
 
-      {tasks.map((task) => (
-        <TaskCard
-          key={task.id}
-          task={task}
-          onDragStart={onDragStart}
-          onEdit={onEdit}
-          onDelete={onDelete}
-        />
-      ))}
+      <div className="flex flex-col gap-2 overflow-y-auto flex-1 pr-2">
+        {tasks.map((task) => (
+          <TaskCard
+            key={task.id}
+            task={task}
+            onDragStart={onDragStart}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
+        ))}
+      </div>
     </div>
   );
 }
