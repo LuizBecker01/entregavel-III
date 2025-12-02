@@ -1,71 +1,34 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import TaskColumn from "./components/TaskColumn";
-import AddTaskForm from "./components/AddTaskForm";
+import { useState } from "react";
+import Header from "./header/page";
+import SearchBar from "./components/SearchBar";
+import TaskBoard from "./components/TaskBoard";
+import TaskModal from "./components/TaskModal";
+import { useTasks } from "./hooks/useTasks";
 import { Task } from "./types/task";
-import { createTask, getTasks, stepToStatus, TaskStep } from "./services/taskService";
 
 export default function Home() {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const {
+    tasks,
+    loading,
+    error,
+    handleCreateTask,
+    handleUpdateTask,
+    handleUpdateTaskStep,
+    handleDeleteTask,
+  } = useTasks();
+
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Carrega as tarefas da API ao iniciar
-  useEffect(() => {
-    loadTasks();
-  }, []);
-
-  const loadTasks = async () => {
-    try {
-      setIsLoading(true);
-      const apiTasks = await getTasks();
-      const convertedTasks: Task[] = apiTasks.map((apiTask) => ({
-        id: apiTask.id,
-        title: apiTask.title,
-        description: apiTask.description,
-        status: stepToStatus(apiTask.step),
-      }));
-      setTasks(convertedTasks);
-    } catch (error) {
-      console.error("Erro ao carregar tarefas:", error);
-      alert("Erro ao carregar tarefas. Usando dados locais.");
-      // Fallback para dados locais em caso de erro
-      setTasks([
-        { id: 5, title: "Testes", description: "impossível", status: "todo" },
-        {
-          id: 6,
-          title: "Outra tarefa",
-          description: "descrição aqui",
-          status: "todo",
-        },
-        { id: 7, title: "Mais uma", description: "mais detalhes", status: "todo" },
-      ]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleAddTask = async (title: string, description: string, step: TaskStep) => {
-    try {
-      const newApiTask = await createTask({ title, description, step });
-      
-      // Adiciona a nova tarefa ao estado local
-      const newTask: Task = {
-        id: newApiTask.id,
-        title: newApiTask.title,
-        description: newApiTask.description,
-        status: stepToStatus(newApiTask.step),
-      };
-      
-      setTasks([...tasks, newTask]);
-      alert("Tarefa criada com sucesso!");
-    } catch (error) {
-      console.error("Erro ao criar tarefa:", error);
-      alert(error instanceof Error ? error.message : "Erro ao criar tarefa");
-      throw error;
-    }
-  };
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    status: "todo" as "todo" | "inProgress" | "done",
+  });
 
   const handleDragStart = (task: Task) => {
     setDraggedTask(task);
@@ -75,81 +38,122 @@ export default function Home() {
     e.preventDefault();
   };
 
-  const handleDrop = (status: "todo" | "inProgress" | "done") => {
+  const handleDrop = async (status: "todo" | "inProgress" | "done") => {
     if (draggedTask) {
-      setTasks(
-        tasks.map((task) =>
-          task.id === draggedTask.id ? { ...task, status } : task
-        )
-      );
+      await handleUpdateTaskStep(draggedTask.id, status);
       setDraggedTask(null);
     }
   };
 
   const handleEdit = (task: Task) => {
-    console.log("Editar tarefa:", task);
+    setEditingTask(task);
+    setFormData({
+      title: task.title,
+      description: task.description,
+      status: task.status,
+    });
+    setShowEditModal(true);
   };
 
-  const handleDelete = (task: Task) => {
-    setTasks(tasks.filter((t) => t.id !== task.id));
+  const handleFormChange = (field: string, value: string) => {
+    setFormData({ ...formData, [field]: value });
   };
 
-  const todoTasks = tasks.filter((task) => task.status === "todo");
-  const inProgressTasks = tasks.filter((task) => task.status === "inProgress");
-  const doneTasks = tasks.filter((task) => task.status === "done");
+  const handleSubmitCreate = async () => {
+    const success = await handleCreateTask(formData);
+    if (success) {
+      setShowCreateModal(false);
+      setFormData({ title: "", description: "", status: "todo" });
+    }
+  };
+
+  const handleSubmitEdit = async () => {
+    if (!editingTask) return;
+    const success = await handleUpdateTask(editingTask.id, formData);
+    if (success) {
+      setShowEditModal(false);
+      setEditingTask(null);
+      setFormData({ title: "", description: "", status: "todo" });
+    }
+  };
+
+  const handleCloseModal = () => {
+    setShowCreateModal(false);
+    setShowEditModal(false);
+    setEditingTask(null);
+    setFormData({ title: "", description: "", status: "todo" });
+  };
+
+  const filterTasks = (taskList: Task[]) => {
+    if (!searchQuery.trim()) return taskList;
+    const query = searchQuery.toLowerCase();
+    return taskList.filter(
+      (task) =>
+        task.id.toString().includes(query) ||
+        task.title.toLowerCase().includes(query) ||
+        task.description.toLowerCase().includes(query)
+    );
+  };
+
+  const todoTasks = filterTasks(tasks.filter((task) => task.status === "todo"));
+  const inProgressTasks = filterTasks(
+    tasks.filter((task) => task.status === "inProgress")
+  );
+  const doneTasks = filterTasks(tasks.filter((task) => task.status === "done"));
+
+  if (loading) {
+    return (
+      <div className="flex flex-col h-screen bg-zinc-50 dark:bg-amber-600">
+        <div className="flex flex-col flex-1 items-center justify-center">
+          <div className="text-2xl font-bold text-black">
+            Carregando tarefas...
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col h-full bg-zinc-50 font-sans dark:bg-amber-600">
-      <div className="flex flex-col flex-1 items-center justify-center">
-        <div className="flex items-center p-5 bg-black max-w-3xl rounded-lg justify-center">
-          <h1 className="text-3xl font-bold">
-            Arrume suas tarefas com Tarify!
-          </h1>
-        </div>
-        
-        <div className="mt-5">
-          <AddTaskForm onAddTask={handleAddTask} />
-        </div>
+    <div className="flex flex-col h-screen bg-zinc-50 font-sans dark:bg-amber-600">
+      <Header onCreateTask={() => setShowCreateModal(true)} />
+      <div className="flex flex-col flex-1 items-center p-4 gap-4">
+        <SearchBar searchQuery={searchQuery} onSearchChange={setSearchQuery} />
 
-        {isLoading ? (
-          <div className="text-white text-xl mt-10">Carregando tarefas...</div>
-        ) : (
-          <div className="bg-black flex flex-row text-center gap-5 h-2/3 w-3/4 mt-5 p-5 rounded-lg shadow-lg justify-around">
-            <TaskColumn
-              title="Para fazer"
-              tasks={todoTasks}
-              status="todo"
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-              onDragStart={handleDragStart}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
-
-            <TaskColumn
-              title="Em andamento"
-              tasks={inProgressTasks}
-              status="inProgress"
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-              onDragStart={handleDragStart}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
-
-            <TaskColumn
-              title="Pronto"
-              tasks={doneTasks}
-              status="done"
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-              onDragStart={handleDragStart}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
+        {error && (
+          <div className="bg-red-500 text-white px-4 py-2 rounded-lg">
+            {error}
           </div>
         )}
+
+        <TaskBoard
+          todoTasks={todoTasks}
+          inProgressTasks={inProgressTasks}
+          doneTasks={doneTasks}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          onDragStart={handleDragStart}
+          onEdit={handleEdit}
+          onDelete={handleDeleteTask}
+        />
       </div>
+
+      <TaskModal
+        isOpen={showCreateModal}
+        mode="create"
+        formData={formData}
+        onFormChange={handleFormChange}
+        onSubmit={handleSubmitCreate}
+        onClose={handleCloseModal}
+      />
+
+      <TaskModal
+        isOpen={showEditModal}
+        mode="edit"
+        formData={formData}
+        onFormChange={handleFormChange}
+        onSubmit={handleSubmitEdit}
+        onClose={handleCloseModal}
+      />
     </div>
   );
 }
