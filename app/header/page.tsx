@@ -1,6 +1,10 @@
 import Image from "next/image";
 
-export default function Header() {
+interface HeaderProps {
+  onCreateTask: () => void;
+}
+
+export default function Header({ onCreateTask }: HeaderProps) {
   return (
     <header className="w-full bg-black px-6 py-4">
       <div className="flex items-center justify-between max-w-7xl mx-auto">
@@ -15,7 +19,10 @@ export default function Header() {
           <h1 className="text-2xl font-bold text-amber-500">Tarefy</h1>
         </div>
 
-        <button className="bg-amber-500 hover:bg-amber-400 font-bold px-6 py-2 rounded-lg transition-colors text-black">
+        <button
+          onClick={onCreateTask}
+          className="bg-amber-500 hover:bg-amber-400 font-bold px-6 py-2 rounded-lg transition-colors text-black"
+        >
           Criar tarefa
         </button>
       </div>
